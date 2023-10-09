@@ -115,8 +115,8 @@ def download_episodes_task(episodes):
                 audio = requests.get(
                     episode["enclosure"]["@url"], timeout=10)
                 audio.raise_for_status()
-                with open(audio_path, "wb+") as f:
-                    f.write(audio.content)
+                with open(audio_path, "wb+") as file:
+                    file.write(audio.content)
             except requests.exceptions.RequestException as download_episodes_exceptions:
                 logging.error("Error while downloading audio %s:",
                               str(download_episodes_exceptions))
