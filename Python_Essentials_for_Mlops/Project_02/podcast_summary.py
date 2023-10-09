@@ -1,3 +1,8 @@
+"""
+Pipeline Airflow
+
+This script provides a simple pipeline airflow.
+"""
 import os
 import json
 import requests
@@ -10,6 +15,7 @@ from vosk import Model, KaldiRecognizer
 from pydub import AudioSegment
 
 # URL do podcast e pasta para armazenar os episódios baixados
+
 PODCAST_URL = "https://www.marketplace.org/feed/podcast/marketplace/"
 EPISODE_FOLDER = "episodes"
 FRAME_RATE = 16000
@@ -25,8 +31,17 @@ def podcast_summary():
     DAG (Directed Acyclic Graph) para resumir um podcast, incluindo o download
     de episódios, transcrição de áudio e armazenamento em um banco de dados SQLite.
     """
+    create_database_task()
+    podcast_episodes = get_episodes_task()
+    load_episodes_task(podcast_episodes)
+    download_episodes_task(podcast_episodes)
+    speech_to_text_task()
 
-    create_database = SqliteOperator(
+def create_database_task():
+    """
+    Cria a tabela SQLite para armazenar informações de episódios do podcast.
+    """
+    return SqliteOperator(
         task_id='create_table_sqlite',
         sql=r"""
         CREATE TABLE IF NOT EXISTS episodes (
@@ -41,107 +56,101 @@ def podcast_summary():
         sqlite_conn_id="podcasts"
     )
 
-    @task()
-    def get_episodes():
-        """
-        Obtém a lista de episódios do feed do podcast.
-        """
-        try:
-            data = requests.get(
-                PODCAST_URL, timeout=10)  # Adicione o argumento de timeout
-            data.raise_for_status()  # Lidar com erros de solicitação HTTP
-            feed = xmltodict.parse(data.text)
-            episodes = feed["rss"]["channel"]["item"]
-            print(f"Found {len(episodes)} episodes.")
-            return episodes
-        except requests.exceptions.RequestException as e:
-            print(f"Error while fetching podcast episodes: {str(e)}")
-            return []
+@task()
+def get_episodes_task():
+    """
+    Obtém a lista de episódios do feed do podcast.
+    """
+    try:
+        data = requests.get(
+            PODCAST_URL, timeout=10)
+        data.raise_for_status()
+        feed = xmltodict.parse(data.text)
+        episodes = feed["rss"]["channel"]["item"]
+        print(f"Found {len(episodes)} episodes.")
+        return episodes
+    except requests.exceptions.RequestException as e:
+        print(f"Error while fetching podcast episodes: {str(e)}")
+        return []
 
-    podcast_episodes = get_episodes()
-    create_database.set_downstream(podcast_episodes)
+@task()
+def load_episodes_task(episodes):
+    """
+    Carrega novos episódios no banco de dados.
+    """
+    hook = SqliteHook(sqlite_conn_id="podcasts")
+    stored_episodes = hook.get_pandas_df("SELECT * from episodes;")
+    new_episodes = []
 
-    @task()
-    def load_episodes(episodes):
-        """
-        Carrega novos episódios no banco de dados.
-        """
-        hook = SqliteHook(sqlite_conn_id="podcasts")
-        stored_episodes = hook.get_pandas_df("SELECT * from episodes;")
-        new_episodes = []
+    for episode in episodes:
+        link = episode["link"]
+        if link not in stored_episodes["link"].values:
+            filename = f"{link.split('/')[-1]}.mp3"
+            new_episodes.append([link, episode["title"],
+                                episode["pubDate"], episode["description"], filename])
 
-        for episode in episodes:
-            link = episode["link"]
-            if link not in stored_episodes["link"].values:
-                filename = f"{link.split('/')[-1]}.mp3"
-                new_episodes.append([link, episode["title"],
-                                     episode["pubDate"], episode["description"], filename])
+    hook.insert_rows(table='episodes', rows=new_episodes, target_fields=[
+                     "link", "title", "published", "description", "filename"])
+    return new_episodes
 
-        hook.insert_rows(table='episodes', rows=new_episodes, target_fields=[
-                         "link", "title", "published", "description", "filename"])
-        return new_episodes
+@task()
+def download_episodes_task(episodes):
+    """
+    Baixa os episódios de áudio do podcast.
+    """
+    audio_files = []
+    for episode in episodes:
+        link = episode["link"]
+        name_end = link.split('/')[-1]
+        filename = f"{name_end}.mp3"
+        audio_path = os.path.join(EPISODE_FOLDER, filename)
 
-    new_episodes = load_episodes(podcast_episodes)
+        if not os.path.exists(audio_path):
+            print(f"Downloading {filename}")
+            try:
+                audio = requests.get(
+                    episode["enclosure"]["@url"], timeout=10)
+                audio.raise_for_status()
+                with open(audio_path, "wb+") as f:
+                    f.write(audio.content)
+            except requests.exceptions.RequestException as e:
+                print(f"Error while downloading audio: {str(e)}")
+        audio_files.append({"link": link, "filename": filename})
+    return audio_files
 
-    @task()
-    def download_episodes(episodes):
-        """
-        Baixa os episódios de áudio do podcast.
-        """
-        audio_files = []
-        for episode in episodes:
-            link = episode["link"]
-            name_end = link.split('/')[-1]
-            filename = f"{name_end}.mp3"
-            audio_path = os.path.join(EPISODE_FOLDER, filename)
+@task()
+def speech_to_text_task():
+    """
+    Realiza a transcrição de áudio dos episódios baixados.
+    """
+    hook = SqliteHook(sqlite_conn_id="podcasts")
+    untranscribed_episodes = hook.get_pandas_df(
+        "SELECT * from episodes WHERE transcript IS NULL;")
 
-            if not os.path.exists(audio_path):
-                print(f"Downloading {filename}")
-                try:
-                    audio = requests.get(
-                        episode["enclosure"]["@url"], timeout=10)  # Adicione o argumento de timeout
-                    audio.raise_for_status()  # Lidar com erros de solicitação HTTP
-                    with open(audio_path, "wb+") as f:
-                        f.write(audio.content)
-                except requests.exceptions.RequestException as e:
-                    print(f"Error while downloading audio: {str(e)}")
-            audio_files.append({"link": link, "filename": filename})
-        return audio_files
+    model = Model(model_name="vosk-model-en-us-0.22-lgraph")
+    rec = KaldiRecognizer(model, FRAME_RATE)
+    rec.SetWords(True)
 
-    audio_files = download_episodes(podcast_episodes)
+    for _, row in untranscribed_episodes.iterrows():
+        print(f"Transcribing {row['filename']}")
+        filepath = os.path.join(EPISODE_FOLDER, row["filename"])
+        mp3 = AudioSegment.from_mp3(filepath)
+        mp3 = mp3.set_channels(1)
+        mp3 = mp3.set_frame_rate(FRAME_RATE)
 
-    @task()
-    def speech_to_text():
-        """
-        Realiza a transcrição de áudio dos episódios baixados.
-        """
-        hook = SqliteHook(sqlite_conn_id="podcasts")
-        untranscribed_episodes = hook.get_pandas_df(
-            "SELECT * from episodes WHERE transcript IS NULL;")
+        step = 20000
+        transcript = ""
+        for i in range(0, len(mp3), step):
+            print(f"Progress: {i/len(mp3)}")
+            segment = mp3[i:i+step]
+            rec.AcceptWaveform(segment.raw_data)
+            result = rec.Result()
+            text = json.loads(result)["text"]
+            transcript += text
 
-        model = Model(model_name="vosk-model-en-us-0.22-lgraph")
-        rec = KaldiRecognizer(model, FRAME_RATE)
-        rec.SetWords(True)
+        hook.insert_rows(table='episodes', rows=[
+                         [row["link"], transcript]],
+                         target_fields=["link", "transcript"], replace=True)
 
-        for _, row in untranscribed_episodes.iterrows():
-            print(f"Transcribing {row['filename']}")
-            filepath = os.path.join(EPISODE_FOLDER, row["filename"])
-            mp3 = AudioSegment.from_mp3(filepath)
-            mp3 = mp3.set_channels(1)
-            mp3 = mp3.set_frame_rate(FRAME_RATE)
-
-            step = 20000
-            transcript = ""
-            for i in range(0, len(mp3), step):
-                print(f"Progress: {i/len(mp3)}")
-                segment = mp3[i:i+step]
-                rec.AcceptWaveform(segment.raw_data)
-                result = rec.Result()
-                text = json.loads(result)["text"]
-                transcript += text
-
-            hook.insert_rows(table='episodes', rows=[
-                             [row["link"], transcript]],
-                             target_fields=["link", "transcript"], replace=True)
 if __name__ == "__main__":
     SUMMARY = podcast_summary()
