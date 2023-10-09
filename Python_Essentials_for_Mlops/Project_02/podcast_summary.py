@@ -5,6 +5,7 @@ This script provides a simple pipeline airflow.
 """
 import os
 import json
+import logging
 import requests
 import xmltodict
 import pendulum
@@ -14,8 +15,10 @@ from airflow.providers.sqlite.hooks.sqlite import SqliteHook
 from vosk import Model, KaldiRecognizer
 from pydub import AudioSegment
 
-# URL do podcast e pasta para armazenar os episódios baixados
+logging.basicConfig(filename='movie_recommendation.log', level=logging.ERROR,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
+# URL do podcast e pasta para armazenar os episódios baixados
 PODCAST_URL = "https://www.marketplace.org/feed/podcast/marketplace/"
 EPISODE_FOLDER = "episodes"
 FRAME_RATE = 16000
@@ -69,8 +72,9 @@ def get_episodes_task():
         episodes = feed["rss"]["channel"]["item"]
         print(f"Found {len(episodes)} episodes.")
         return episodes
-    except requests.exceptions.RequestException as e:
-        print(f"Error while fetching podcast episodes: {str(e)}")
+    except requests.exceptions.RequestException as get_episodes_task_execptions:
+        logging.error("Error while fetching podcast episodes %s:",
+                      str(get_episodes_task_execptions))
         return []
 
 @task()
@@ -113,8 +117,9 @@ def download_episodes_task(episodes):
                 audio.raise_for_status()
                 with open(audio_path, "wb+") as f:
                     f.write(audio.content)
-            except requests.exceptions.RequestException as e:
-                print(f"Error while downloading audio: {str(e)}")
+            except requests.exceptions.RequestException as download_episodes_exceptions:
+                logging.error("Error while downloading audio %s:",
+                              str(download_episodes_exceptions))
         audio_files.append({"link": link, "filename": filename})
     return audio_files
 
