@@ -2,15 +2,14 @@ import os
 import json
 import requests
 import xmltodict
-
-from airflow.decorators import dag, task
 import pendulum
+from airflow.decorators import dag, task
 from airflow.providers.sqlite.operators.sqlite import SqliteOperator
 from airflow.providers.sqlite.hooks.sqlite import SqliteHook
-
 from vosk import Model, KaldiRecognizer
 from pydub import AudioSegment
 
+# URL do podcast e pasta para armazenar os episódios baixados
 PODCAST_URL = "https://www.marketplace.org/feed/podcast/marketplace/"
 EPISODE_FOLDER = "episodes"
 FRAME_RATE = 16000
@@ -22,6 +21,11 @@ FRAME_RATE = 16000
     catchup=False,
 )
 def podcast_summary():
+    """
+    DAG (Directed Acyclic Graph) para resumir um podcast, incluindo o download
+    de episódios, transcrição de áudio e armazenamento em um banco de dados SQLite.
+    """
+
     create_database = SqliteOperator(
         task_id='create_table_sqlite',
         sql=r"""
@@ -39,60 +43,87 @@ def podcast_summary():
 
     @task()
     def get_episodes():
-        data = requests.get(PODCAST_URL)
-        feed = xmltodict.parse(data.text)
-        episodes = feed["rss"]["channel"]["item"]
-        print(f"Found {len(episodes)} episodes.")
-        return episodes
+        """
+        Obtém a lista de episódios do feed do podcast.
+        """
+        try:
+            data = requests.get(
+                PODCAST_URL, timeout=10)  # Adicione o argumento de timeout
+            data.raise_for_status()  # Lidar com erros de solicitação HTTP
+            feed = xmltodict.parse(data.text)
+            episodes = feed["rss"]["channel"]["item"]
+            print(f"Found {len(episodes)} episodes.")
+            return episodes
+        except requests.exceptions.RequestException as e:
+            print(f"Error while fetching podcast episodes: {str(e)}")
+            return []
 
     podcast_episodes = get_episodes()
     create_database.set_downstream(podcast_episodes)
 
     @task()
     def load_episodes(episodes):
+        """
+        Carrega novos episódios no banco de dados.
+        """
         hook = SqliteHook(sqlite_conn_id="podcasts")
         stored_episodes = hook.get_pandas_df("SELECT * from episodes;")
         new_episodes = []
-        for episode in episodes:
-            if episode["link"] not in stored_episodes["link"].values:
-                filename = f"{episode['link'].split('/')[-1]}.mp3"
-                new_episodes.append([episode["link"], episode["title"], episode["pubDate"], episode["description"], filename])
 
-        hook.insert_rows(table='episodes', rows=new_episodes, target_fields=["link", "title", "published", "description", "filename"])
+        for episode in episodes:
+            link = episode["link"]
+            if link not in stored_episodes["link"].values:
+                filename = f"{link.split('/')[-1]}.mp3"
+                new_episodes.append([link, episode["title"],
+                                     episode["pubDate"], episode["description"], filename])
+
+        hook.insert_rows(table='episodes', rows=new_episodes, target_fields=[
+                         "link", "title", "published", "description", "filename"])
         return new_episodes
 
     new_episodes = load_episodes(podcast_episodes)
 
     @task()
     def download_episodes(episodes):
+        """
+        Baixa os episódios de áudio do podcast.
+        """
         audio_files = []
         for episode in episodes:
-            name_end = episode["link"].split('/')[-1]
+            link = episode["link"]
+            name_end = link.split('/')[-1]
             filename = f"{name_end}.mp3"
             audio_path = os.path.join(EPISODE_FOLDER, filename)
+
             if not os.path.exists(audio_path):
                 print(f"Downloading {filename}")
-                audio = requests.get(episode["enclosure"]["@url"])
-                with open(audio_path, "wb+") as f:
-                    f.write(audio.content)
-            audio_files.append({
-                "link": episode["link"],
-                "filename": filename
-            })
+                try:
+                    audio = requests.get(
+                        episode["enclosure"]["@url"], timeout=10)  # Adicione o argumento de timeout
+                    audio.raise_for_status()  # Lidar com erros de solicitação HTTP
+                    with open(audio_path, "wb+") as f:
+                        f.write(audio.content)
+                except requests.exceptions.RequestException as e:
+                    print(f"Error while downloading audio: {str(e)}")
+            audio_files.append({"link": link, "filename": filename})
         return audio_files
 
     audio_files = download_episodes(podcast_episodes)
 
     @task()
-    def speech_to_text(audio_files, new_episodes):
+    def speech_to_text():
+        """
+        Realiza a transcrição de áudio dos episódios baixados.
+        """
         hook = SqliteHook(sqlite_conn_id="podcasts")
-        untranscribed_episodes = hook.get_pandas_df("SELECT * from episodes WHERE transcript IS NULL;")
+        untranscribed_episodes = hook.get_pandas_df(
+            "SELECT * from episodes WHERE transcript IS NULL;")
 
         model = Model(model_name="vosk-model-en-us-0.22-lgraph")
         rec = KaldiRecognizer(model, FRAME_RATE)
         rec.SetWords(True)
 
-        for index, row in untranscribed_episodes.iterrows():
+        for _, row in untranscribed_episodes.iterrows():
             print(f"Transcribing {row['filename']}")
             filepath = os.path.join(EPISODE_FOLDER, row["filename"])
             mp3 = AudioSegment.from_mp3(filepath)
@@ -108,9 +139,9 @@ def podcast_summary():
                 result = rec.Result()
                 text = json.loads(result)["text"]
                 transcript += text
-            hook.insert_rows(table='episodes', rows=[[row["link"], transcript]], target_fields=["link", "transcript"], replace=True)
 
-    #Uncomment this to try speech to text (may not work)
-    #speech_to_text(audio_files, new_episodes)
-
-summary = podcast_summary()
+            hook.insert_rows(table='episodes', rows=[
+                             [row["link"], transcript]],
+                             target_fields=["link", "transcript"], replace=True)
+if __name__ == "__main__":
+    SUMMARY = podcast_summary()
