@@ -3,6 +3,7 @@ Movie Recommendation System
 
 This script provides a simple movie recommendation system based on user input.
 """
+import logging
 import re
 import numpy as np
 import pandas as pd
@@ -10,6 +11,9 @@ import ipywidgets as widgets
 from IPython.display import display
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+
+logging.basicConfig(filename='movie_recommendation.log', level=logging.ERROR,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 def clean_movie_title(title):
     """
@@ -33,28 +37,30 @@ def find_similar_movies(movie_id):
     Returns:
         pandas.DataFrame: Um DataFrame com as principais recomendações de filmes.
     """
+    try:
+        similar_users = ratings[(ratings["movieId"] == movie_id) &
+                                (ratings["rating"] > 4)]["userId"].unique()
+        similar_user_recs = ratings[(ratings["userId"].isin(similar_users)) &
+                                    (ratings["rating"] > 4)]["movieId"]
+        similar_user_recs = similar_user_recs.value_counts() / len(similar_users)
 
-    similar_users = ratings[(ratings["movieId"] == movie_id) &
-                            (ratings["rating"] > 4)]["userId"].unique()
-    similar_user_recs = ratings[(ratings["userId"].isin(similar_users)) &
-                                (ratings["rating"] > 4)]["movieId"]
-    similar_user_recs = similar_user_recs.value_counts() / len(similar_users)
+        similar_user_recs = similar_user_recs[similar_user_recs > 0.10]
+        all_users = ratings[(ratings["movieId"].isin(similar_user_recs.index)) &
+                            (ratings["rating"] > 4)]
+        all_user_recs = all_users["movieId"].value_counts() / len(all_users["userId"].unique())
+        rec_percentages = pd.concat([similar_user_recs, all_user_recs], axis=1)
+        rec_percentages.columns = ["similar", "all"]
 
-    similar_user_recs = similar_user_recs[similar_user_recs > 0.10]
-    all_users = ratings[(ratings["movieId"].isin(similar_user_recs.index)) &
-                        (ratings["rating"] > 4)]
-    all_user_recs = all_users["movieId"].value_counts() / len(all_users["userId"].unique())
-    rec_percentages = pd.concat([similar_user_recs, all_user_recs], axis=1)
-    rec_percentages.columns = ["similar", "all"]
-
-    rec_percentages["score"] = rec_percentages["similar"] / rec_percentages["all"]
-    rec_percentages = rec_percentages.sort_values("score", ascending=False)
-    return (
-    rec_percentages.head(10)
-    .merge(movies, left_index=True, right_on="movieId")
-    [["score", "title", "genres"]]
-)
-
+        rec_percentages["score"] = rec_percentages["similar"] / rec_percentages["all"]
+        rec_percentages = rec_percentages.sort_values("score", ascending=False)
+        return (
+        rec_percentages.head(10)
+        .merge(movies, left_index=True, right_on="movieId")
+        [["score", "title", "genres"]]
+        )
+    except (ValueError, KeyError, IndexError) as find_similar_movies_exception:
+        logging.error("Error in find_similar_movies: %s", find_similar_movies_exception)
+        raise
 
 def on_type_recommendations(data):
     """
@@ -63,13 +69,16 @@ def on_type_recommendations(data):
     Args:
         data (ipywidgets.WidgetEvent): O evento de mudança de valor do widget de entrada de filme.
     """
-    with recommendation_list:
-        recommendation_list.clear_output()
-        title = data["new"]
-        if len(title) > 5:
-            results = search(title)
-            movie_id = results.iloc[0]["movieId"]
-            display(find_similar_movies(movie_id))
+    try:
+        with recommendation_list:
+            recommendation_list.clear_output()
+            title = data["new"]
+            if len(title) > 5:
+                results = search(title)
+                movie_id = results.iloc(0)["movieId"]
+                display(find_similar_movies(movie_id))
+    except (ValueError, KeyError, IndexError) as on_type_recommendations_exception:
+        logging.error("Error in on_type_recommendations: %s", on_type_recommendations_exception)
 
 def search(title):
     """
@@ -81,16 +90,24 @@ def search(title):
     Returns:
         pandas.DataFrame: Um DataFrame com os resultados da pesquisa.
     """
-    title = clean_movie_title(title)
-    query_vec = vectorizer.transform([title])
-    similarity = cosine_similarity(query_vec, tfidf).flatten()
-    indices = np.argpartition(similarity, -5)[-5:]
-    results = movies.iloc[indices].iloc[::-1]
-    return results
+    try:
+        title = clean_movie_title(title)
+        query_vec = vectorizer.transform([title])
+        similarity = cosine_similarity(query_vec, tfidf).flatten()
+        indices = np.argpartition(similarity, -5)[-5:]
+        results = movies.iloc[indices].iloc[::-1]
+        return results
+    except (ValueError, KeyError, IndexError) as search_exception:
+        logging.error("Error in search: %s", search_exception)
+        raise
 
 # Carregar dados
-movies = pd.read_csv("movies.csv")
-ratings = pd.read_csv("ratings.csv")
+try:
+    movies = pd.read_csv("movies.csv")
+    ratings = pd.read_csv("ratings.csv")
+except (FileNotFoundError, pd.errors.EmptyDataError) as load_data_exception:
+    logging.error("Error loading data: %s", load_data_exception)
+    raise
 
 # Configurar widget de entrada de título de filme
 movie_name_input = widgets.Text(
