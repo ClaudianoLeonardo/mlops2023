@@ -103,11 +103,13 @@ def search(title):
 
 # Carregar dados
 try:
-    movies = pd.read_csv("movies.csv")
-    ratings = pd.read_csv("ratings.csv")
+    movies = pd.read_csv("Python_Essentials_for_Mlops/Project_01/data/movies.csv")
+    ratings = pd.read_csv("Python_Essentials_for_Mlops/Project_01/data/ratings.csv")
 except (FileNotFoundError, pd.errors.EmptyDataError) as load_data_exception:
     logging.error("Error loading data: %s", load_data_exception)
     raise
+
+movies["clean_title"] = movies["title"].apply(clean_movie_title)
 
 # Configurar widget de entrada de título de filme
 movie_name_input = widgets.Text(
@@ -117,14 +119,14 @@ movie_name_input = widgets.Text(
 )
 recommendation_list = widgets.Output()
 
-# Observar a entrada do usuário para atualizar a lista de recomendações
+
 movie_name_input.observe(on_type_recommendations, names='value')
 
-# Exibir o widget de entrada e a lista de recomendações
+
 display(movie_name_input, recommendation_list)
 
-# Configurar vetorizador TF-IDF
+
 vectorizer = TfidfVectorizer(ngram_range=(1, 2))
 
-# Calcular TF-IDF para os títulos de filmes
-tfidf = vectorizer.fit_transform(movies["title"])
+
+tfidf = vectorizer.fit_transform(movies["clean_title"])
