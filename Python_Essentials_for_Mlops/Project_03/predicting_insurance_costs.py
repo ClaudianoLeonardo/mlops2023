@@ -27,12 +27,16 @@ def load_data(file_path):
     try:
         data = pd.read_csv(file_path)
         return data
-    except FileNotFoundError as FileNotFound:
-        logger.error("Arquivo não encontrado: Verifique o caminho do arquivo. Erro : %s", str(FileNotFound))
-    except pd.errors.EmptyDataError as EmptyData:
-        logger.error("Arquivo CSV está vazio. Erro: %s", str(EmptyData))
-    except pd.errors.ParserError as ParserError:
-        logger.error("Erro ao analisar o arquivo CSV. Erro: %s", str(ParserError))
+    except FileNotFoundError as file_not_found:
+        logger.error("Arquivo não encontrado: Verifique o caminho do arquivo. Erro : %s",
+                     str(file_not_found))
+        return None
+    except pd.errors.EmptyDataError as empty_data:
+        logger.error("Arquivo CSV está vazio. Erro: %s", str(empty_data))
+        return None
+    except pd.errors.ParserError as parser_error:
+        logger.error("Erro ao analisar o arquivo CSV. Erro: %s", str(parser_error))
+        return None
 
 def transform_data(data):
     """
@@ -50,8 +54,9 @@ def transform_data(data):
         data["log_charges"] = np.log2(data["charges"])
         data["is_smoker"] = data["smoker"] == "yes"
         return data[["age", "bmi", "is_smoker"]], data["log_charges"]
-    except KeyError as e:
-        raise KeyError(f"Colunas necessárias não encontradas nos dados. Erro: {str(e)}")
+    except KeyError as key_error:
+        logger.error("Colunas necessárias não encontradas nos dados. Erro: %s", str(key_error))
+        return None
 
 def train_linear_regression(data_train, labels_train):
     """
@@ -68,8 +73,9 @@ def train_linear_regression(data_train, labels_train):
         model = LinearRegression()
         model.fit(data_train, labels_train)
         return model
-    except ValueError as e:
-        raise ValueError(f"Erro ao treinar o modelo de regressão linear. Erro: {str(e)}")
+    except ValueError as value_error:
+        logger.error("Erro ao treinar o modelo de regressão linear. Erro: %s", str(value_error))
+        return None
 
 def evaluate_model(model, data, labels):
     """
@@ -89,8 +95,9 @@ def evaluate_model(model, data, labels):
         mse = mean_squared_error(labels, labels_pred)
         r2 = r2_score(labels, labels_pred)
         return mse, r2
-    except ValueError as e:
-        raise ValueError(f"Erro ao avaliar o modelo. Erro: {str(e)}")
+    except ValueError as value_error:
+        logger.error("Erro ao avaliar o modelo. Erro: %s", str(value_error))
+        return None
 
 def main():
     """
@@ -102,20 +109,24 @@ def main():
         insurance_data = load_data(file_path)
         data, labels = transform_data(insurance_data)
 
-        data_train, data_test, labels_train, labels_test = train_test_split(data, labels, test_size=0.25, random_state=1)
+        data_train, data_test, labels_train, labels_test = train_test_split(data, labels,
+                                                            test_size=0.25, random_state=1)
 
         insurance_model = train_linear_regression(data_train, labels_train)
 
         train_mse, train_r2 = evaluate_model(insurance_model, data_train, labels_train)
         test_mse, test_r2 = evaluate_model(insurance_model, data_test, labels_test)
-
-        print("Training MSE:", train_mse)
-        print("Training R^2:", train_r2)
-        print("Test MSE:", test_mse)
+        return(
+        print("Training MSE:", train_mse),
+        print("Training R^2:", train_r2),
+        print("Test MSE:", test_mse),
         print("Test R^2:", test_r2)
+        )
 
-    except (FileNotFoundError, pd.errors.EmptyDataError, pd.errors.ParserError, KeyError, ValueError) as e:
-        print(f"Erro durante a execução do programa: {str(e)}")
+    except (FileNotFoundError, pd.errors.EmptyDataError, pd.errors.ParserError,
+            KeyError, ValueError) as exec_error:
+        logger.error("Erro durante a execução do programa: %s", str(exec_error))
+        return None
 
 if __name__ == "__main__":
     main()
