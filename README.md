@@ -4,6 +4,15 @@
 
 This repository contains activities and projects for the course **DCA0305 - MACHINE LEARNING BASED SYSTEMS DESIGN** at **UFRN**.
 
+## Student Information
+
+- **Name**: Claudiano Silva
+- **Course**: Computer Engineering
+- **University/Institution**: FEDERAL UNIVERSITY OF RIO GRANDE DO NORTE
+- **GitHub Profile**: [github.com/ClaudianoLeonardo](https://github.com/ClaudianoLeonardo)
+  
+
+
 ## Unit 1
 
 ### Projects for Unit 1
