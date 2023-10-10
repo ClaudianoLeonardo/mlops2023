@@ -17,4 +17,4 @@ This repository contains activities and projects for the course **DCA0305 - MACH
 
 ### Projects for Unit 1
 
-1. [Python_Essentials_for_Mlops](unit1_projectA_link)
+1. [Python_Essentials_for_Mlops](https://github.com/ClaudianoLeonardo/mlops2023/tree/main/Python_Essentials_for_Mlops)
