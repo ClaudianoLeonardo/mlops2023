@@ -3,7 +3,7 @@
 Welcome to the "Python Essentials for MLOps" repository. This repository aims to provide an essential understanding of Python programming for Machine Learning Operations (MLOps). It covers key concepts and techniques, including the principles of clean code such as exception handling, logging, and unit testing. We've reinforced this knowledge by completing the ["Intermediate Python for Web Development"](https://www.dataquest.io/course/intermediate-python-for-web-development/) course on the [DataQuest](https://www.dataquest.io/) platform and applied these principles by refactoring three projects also available on DataQuest.
 
 ## Certificates
-- [Intermediate Python for Web Development](https://www.dataquest.io/](https://app.dataquest.io/verify_cert/BWX0J0R0CEHS3IT6PI2M/))
+- [Intermediate Python for Web Development](https://app.dataquest.io/view_cert/BWX0J0R0CEHS3IT6PI2M)
 
 ## Projects
 
