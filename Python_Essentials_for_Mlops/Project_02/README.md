@@ -53,4 +53,13 @@ The Airflow DAG `podcast_summary` is defined with the following tasks:
 
 Log files are created in the current working directory with the filename "movie_recommendation.log" for error messages and status updates during the pipeline's execution.
 
-Feel free to adapt and extend this pipeline to meet your specific podcast summarization needs.
+## License
+
+This project is provided under the [MIT License](LICENSE) for open-source use and modification. Please review the license for more details.
+
+## References
+
+[dataquest](https://www.dataquest.io/)
+
+
+[mlops](https://github.com/ivanovitchm/mlops)
