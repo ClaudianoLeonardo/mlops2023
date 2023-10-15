@@ -18,3 +18,15 @@ This repository contains activities and projects for the course **DCA0305 - MACH
 ### Projects for Unit 1
 
 1. [Python_Essentials_for_Mlops](https://github.com/ClaudianoLeonardo/mlops2023/tree/main/Python_Essentials_for_Mlops)
+
+
+## License
+
+This repository is provided under the [MIT License](LICENSE). 
+
+## References
+
+[dataquest](https://www.dataquest.io/)
+
+
+[mlops](https://github.com/ivanovitchm/mlops)
