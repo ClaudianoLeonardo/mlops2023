@@ -75,8 +75,6 @@ The script logs errors and exceptions to a file named `movie_recommendation.log`
 
 This project is provided under the [MIT License](LICENSE) for open-source use and modification. Please review the license for more details.
 
-Enjoy using the Movie Recommendation System!
-
 ## References
 
 [dataquest](https://www.dataquest.io/)
