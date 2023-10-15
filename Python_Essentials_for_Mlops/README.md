@@ -19,6 +19,9 @@ Welcome to the "Python Essentials for MLOps" repository. This repository aims to
 - Original: [Guided Project: Predicting Insurance Costs Project](https://app.dataquest.io/c/136/m/730/guided-project%3A-predicting-insurance-costs)
 - Refactored: [Guided Project: Predicting Insurance Costs](https://github.com/ClaudianoLeonardo/mlops2023/tree/main/Python_Essentials_for_Mlops/Project_03)
 
+### Explanation Video
+- [Link to Video Explaining the Projects](#)
+
 ## License
 
 This repository is provided under the [MIT License](LICENSE). 
