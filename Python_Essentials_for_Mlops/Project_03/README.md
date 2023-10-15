@@ -1,4 +1,4 @@
-# Readme - Predicting Insurance Costs
+# Predicting Insurance Costs
 
 This repository contains a Python script that loads health insurance data, trains a linear regression model, and evaluates the model's performance. This Readme provides an overview of the code and explains how to use it.
 
@@ -59,4 +59,11 @@ You can customize this script in the following ways:
 ## License
 
 This script is provided under the [MIT License](LICENSE). 
+
+## References
+
+[dataquest](https://www.dataquest.io/)
+
+
+[mlops](https://github.com/ivanovitchm/mlops)
 
