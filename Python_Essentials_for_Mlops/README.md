@@ -20,7 +20,7 @@ Welcome to the "Python Essentials for MLOps" repository. This repository aims to
 - Refactored: [Guided Project: Predicting Insurance Costs](https://github.com/ClaudianoLeonardo/mlops2023/tree/main/Python_Essentials_for_Mlops/Project_03)
 
 ### Explanation Video
-- [Link to Video Explaining the Projects](#)
+- [Link to Video Explaining the Projects](https://www.loom.com/share/f7780212b1f94bcd91614528daf59ac6?t=267&sid=eb1abbb7-176d-46a6-98d2-778809b21446)
 
 ## License
 
